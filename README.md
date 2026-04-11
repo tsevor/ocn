@@ -75,6 +75,22 @@ valid attributes:
 - `comment`
 - `doc`
 
+# GLOBALS
+
+- preprocessed and replaced by everything between the `=` and `;`
+
+```osml
+$GLOBAL_INT = 73 ;
+$GLOBAL_STR = "Apple!" ;
+```
+
+good for options or constants
+
+```osml
+$SCALE = 1.0 ;
+$PI = 3.14159265359 ;
+```
+
 # OBJECTS
 
 - definitions in root
@@ -82,13 +98,13 @@ valid attributes:
 to define:
 ```osml
 example_obj ( # the name of the object
-  a,                  # defining an attribute
-  !b,                 # overpower overrides (1)
-  c = 2,              # default value
-  d[1 .. 5] = 3,      # min-max valid values [inclusive .. non-inclusive]
-  e = "hello",        # dynamic typed string
-  f:string = "world", # static typed string
-  g:list 
+  a,                   # defining an attribute
+  !b,                  # overpower overrides (1)
+  c = 2,               # default value
+  d[1 .. 5] = 3,       # min-max valid values [inclusive .. non-inclusive]
+  e = "hello",         # dynamic typed string
+  f:string = "world",  # static typed string
+  g:int = $GLOBAL_INT, # using a global variable
 )
 ```
 *\(1: see [overrides](#overrides)\)*
