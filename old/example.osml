@@ -1,0 +1,461 @@
+# ---COMMENTS:
+
+# comments are notated like this with #
+
+
+# ---PREFACE:
+
+# OBJECT SCENE MARKUP LANGUAGE
+
+# the purpose of this format is to have unorderd
+# jumbles of objects inside of scenes that can be
+# addressed and loaded separately.
+
+
+# ---EXAMPLE USES:
+
+# this can be useful in any game where
+# objects are mostly static
+
+# <more here>
+
+# ---TYPES:
+
+# all automatic
+
+# ints: 32, -3, 0xFF, 0o033, 0b00100101
+# floats: 0.0014, 12e9, 32.
+# strings: "hello", ""
+# bools: true, false
+# other: null
+# VERY WEIRD lists/arrays/vectors
+# NO dicts/maps
+
+# more info in PLAIN TYPE OBJECTS section
+
+
+# ---SYNTAX IN ROOT:
+
+# this is the 'root' of the file
+# this is where definitions of names happen
+
+# inside of a scene or an object, things are very different
+
+
+# ---HEADER:
+
+# ---INCLUDES:
+
+add example_blank.osml;
+
+# syntax: `add <filename>.osml;`
+
+# this adds to current namespace
+# to give it its own namespace:
+
+add example_blank2.osml as example2;
+
+# address its components like this:
+# example2.obj1
+# example2.scn1
+
+# ---META:
+
+# the meta itself is an object
+meta (
+  author "Trevor Abercrombie",
+)
+
+# can be used in objects and scenes for docstrings, etc
+
+
+
+# ---OBJECTS:
+
+# to define:
+
+example_obj (
+
+  a,           # defining an attribute
+  longB,       # a long annoying name
+  c = 2,       # default value
+  d[1..5] = 3, # min-max values
+
+  # real example:
+  longE = 5, # the e-value of the object
+  # |     |  |
+  # |     |  docstring for argument
+  # |     |  as a comment
+  # |     |
+  # |     default value
+  # |
+  # name
+)
+
+# a few real ones for the other examples
+
+obj ( # used for scene examples
+  a = 1, # value A
+  b = 2, # value B
+  c = 3, # value C
+  d = 4, # value D
+)
+
+rect (
+  x = 0,
+  y = 0,
+  w = 10,
+  h = 10,
+)
+
+color (
+  r = 0,
+  g = 0,
+  b = 0,
+)
+
+
+# ---SCENE DEFINITION:
+
+# to define:
+
+# this gives this scene the name `scn`
+scn {
+  # objects here
+}
+
+
+# ---SYNTAX IN SCENES:
+
+scn_obj {
+
+  # ---OBJECT USE:
+
+  # args in same order as definition:
+  obj 10 10 50 50;
+
+  # multi-line
+  obj
+	12
+	32
+	12
+	3
+  ;
+  # because of the semicolon
+
+  # defaults:
+  obj 4 23;
+  # because of defaults, same as:
+  obj 4 23 3 4;
+  
+  # like python would have:
+  # `obj(2, 4, d=12)`
+  # to skip c and override d,
+  # we have this:
+  
+  obj 2 4 d(12);
+  # skips 3rd arg (c), leaving it default,
+  # but specifies d (4th arg) by name
+
+  # or we can do:
+
+  obj 2 4 . 12; # keeps 3rd arg (c) default
+
+  # also like python, you can't do a plain arg
+  # after specifying one by name:
+
+  # obj 12 b(7) 32;
+  # bad syntax  ^
+
+  # values can be in parintheses without overriding:
+  obj (2) (34) c(3) d(23);
+}
+
+
+# ---MORE SCENE DEFINITIONS:
+
+# to reiterate, scenes are defined like:
+
+scn2 {
+  obj; # keeping all defaults
+}
+# this gives this scene the name `scn2`
+
+# scens can contain copies of others
+scn3 {
+  scn2;
+}
+
+# i reiterate, COPIES.
+# modifying scn3.scn2 does not modify scn2
+
+scn4 {
+  *scn2;
+}
+# unpacks scn2's items into scn4
+
+# scn4 does non contain scn2 like scn3, but instead
+# contains each of scn2's items, again, as COPIES
+
+scn5 {
+  subScn {
+    # objects
+  }
+}
+# this allows there to be an in-place definition of a
+# scene inside another
+
+# this does not make `subScn` a scene usable anywhere,
+# but rather just makes a scene inside scn5 addressible
+# as scn5.subScn
+
+# this is bad syntax:
+# scn5 {
+#   {
+#    # objects
+#   }
+# }
+
+# the point of a scene is to be addressible by name
+# which gets us to this:
+
+# objects themselves are not usually addressible by any name
+# they are technically indexible, because they are in
+# a list/array/vector, but that's against the point
+# of this language.
+
+# if you want a single addressible object, like a button
+# the best you can do is give the object an id
+button (
+  x = 0,
+  y = 0,
+  pushed = false,
+  id = 0,
+)
+scn_button {
+  button 0 0 . 2;
+}
+
+# then in the real code you can go through and based on the
+# object type and id, do things
+
+
+# ---A BIT MORE MISC STUFF:
+
+scn6 {
+  # to change all default values of a name within a scene
+  # after a certain point, follow this syntax:
+
+  ! a(10) b(10);
+
+  obj; # vals: 10 10 3 4
+
+  ! b(23) d(44);
+
+  obj; # vals: 10 23 3 44
+
+  # change relative
+
+  ! a+(3) b-(4) c*(2) d/(4)
+
+  obj; # vals: 13 19 6 11
+
+  # to set/change all shorthands in an entire subscene
+
+  scn2 ! x0 y+10;
+
+  # to make a value exempt from this, prefix it with !
+  # to overrule this when overriding, make the override use !!
+  # and so on
+  # the more !, the more powerful
+
+  # for loops:
+
+  # let's say you want to make a 100 x 100 grid of squares
+  # you can't realistically do that by hand,
+  # so there are for loops:
+
+  # <var>(<start=0>;<stop>;<step=1>) {
+  #   <objects>
+  # }
+
+  i(;10;) {
+    rect;
+  }
+
+  # nested
+
+  i(;100;) j(;100;) {
+    # parintheses allow expressions,
+	# can be used any time,
+    # but must be used when there are variables
+    rect (i * 10) (j * 10) 10 10;
+  }
+  # for loops automatically unpack
+
+  # if statements
+  # only really useful in for loops
+
+  
+  # ? (<condition>) {
+  #   <objects>
+  # }
+
+  # 0 evaluates to false
+  # anything else is true
+  # or just do bools
+
+  # c-style expressions
+
+  i(;100;) j(;100;) {
+    ? (i % j) {
+      rect (i) (j) 10 10;
+    }
+    ? (i == 0) {
+      rect 20 (i) 5 5;
+	}
+    # if statements automatically unpack
+  }
+}
+
+
+
+# ---ADVANCED OBJECTS:
+
+# now that we understand how objects look in
+# scenes, we can expand on them
+
+# an object can have more advanced
+# properties by adding a sub-object as
+# a kind of namespace
+
+# for example:
+obj2 (
+  substuff (
+    a = 0,
+    b = 0,
+  ),
+  x = 0,
+  y = 0,
+)
+
+# the sub-object can be a copy of an existing one
+# cannot be itself
+obj3 (
+  obj2,
+)
+
+# ---SUB OBJECT DEFAULTS + DEFINITIONS:
+# this brings up:
+# how do you set these values in a scene?
+
+# like this:
+scn7 {
+  obj2 (1) 3 4;
+}
+# this sets it to:
+# obj2 (
+#   substuff (
+#     a = 1,
+#     b = 0,
+#   )
+#   x = 3,
+#   y = 4,
+# )
+
+# and different defaults as a sub object is
+# ---IN OBJECT DEFINITIONS:
+obj4 (
+  obj1 1 2,
+  obj2 (3 7) 1 2,
+  obj3 obj2(substuff(1 3) 5 7),
+)
+
+# you can give a sub-object a new name within the object
+obj5 (
+  sub:obj1,
+)
+
+# you can inherit by unpacking an object
+
+# for example:
+rect_but_different (
+  *rect,
+  a = 0,
+  b = 0,
+)
+
+# a good example of both in action
+
+# for example:
+colored_rect (
+  *rect,
+  color,
+)
+
+# finally, now that we have sub-objects:
+# ---BUILT IN OBJECTS:
+# cannot be unpacked
+# for special cases
+# defy all syntax
+
+# ---PLAIN TYPE OBJECTS:
+# just for abstraction
+
+# int <value>
+# float <value>
+# string <value>
+# bool <value>
+
+# ---LIST OBJECT:
+
+# list <len/. (for dynamic)> <object>
+
+# you can also set the object's values
+
+# let's go with storage as an example
+item (
+  name = "",
+  count = 0,
+  in_chest = false,
+)
+storage_chest (
+  owner = "",
+  items:list 64 item(in_chest(true)),
+)
+
+# dynamic length example
+date (
+  year = 0,
+  month = 0,
+  day = 0,
+)
+signature (
+  name = "",
+  date,
+)
+contract (
+  signatures:list . signature,
+)
+
+# why plain types?
+# for lists of plain stuff
+
+obj6 (
+  list . int,
+)
+
+# ---HOOKS AND OBJECT TYPES:
+
+# these aren't real, but 
+
+button2 (
+  x = 0,
+  y = 0,
+  pressed = false;
+  type = "interactive";
+  hook = "buttonpress";
+)
+
+# so when you come across it in the code,
+# you can check this and run the hooks
