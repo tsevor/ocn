@@ -1,0 +1,28 @@
+$START_X = 100;
+$START_Y = 0;
+
+$SCALE = 2;
+
+obj pos (
+	x: float = 0,
+	y: float = 0,
+)
+
+obj rect (
+	*pos,
+	w: float = 1,
+	h: float = 1,
+)
+
+scene level1 {
+	pos: pos()
+
+	spawn: pos($START_X, $START_Y)
+
+	rect(50, 280, 300, 10)
+	rect(200, 150, 10, 110)
+	rect(75, 230, 100, 10)
+	rect(250, 150, 10, 110)
+	
+	test: pos($($START_X * $SCALE), $(4 / $SCALE))
+}

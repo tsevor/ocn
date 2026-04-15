@@ -56,6 +56,33 @@ obj enemy(
 )
 ```
 
+## Imports
+
+OCN supports modularity through both direct and namespaced imports.
+All imports must occur at the top of the file in the root scope.
+
+- Direct Import: `import "file.ocn"` merges all schemas and
+  globals directly into the current scope.
+
+- Namespaced Import: `import "file.ocn" as ns` encapsulates
+  imported data. Use dot-notation (`ns.type`) for access.
+
+- Shadowing: If names collide, the last definition encountered
+  (top-to-bottom) takes priority.
+
+- Implicit Typing: Namespaced types are resolved implicitly
+  during instantiation if the property is statically typed.
+
+```ocn
+import "math.ocn"
+import "config.ocn" as cfg
+
+obj player(
+    loc: vec2,         # Found in direct import
+    speed = cfg.$BASE  # Found in namespaced import
+)
+```
+
 ## Schemas
 
 Everything in OCN is built from a schema defined at the root
@@ -238,61 +265,3 @@ Arrays are "sealed." Bracket indexing (e.g., `slots[1].id = 5`)
 is strictly forbidden within the file. If you need to address
 or override a specific object from a scene path, it must be
 a named logic node (`id:`), not an element inside an array.
-
-## Full Example
-
-```ocn
-$MAX_TEMP = 35.5;
-$ZONE_PREFIX = "SEC_";
-
-obj vec2(x: float = 0.0, y: float = 0.0)
-
-obj hardware(hid: int, protocol: string)
-
-obj thermal_node(
-	*hardware,
-	threshold: float,
-	active: bool = true,
-	vec2()
-)
-
-obj cooling_rack(
-	max_load: float = $MAX_TEMP,
-	nodes: [thermal_node(0, "TCP", 25.0) ; 3] = []
-)
-
-obj server_room(name: string, rack: cooling_rack())
-
-scene floorplan {
-	# 1. Anonymous Instance & Parse-Time Math
-	server_room(
-		$($ZONE_PREFIX + "Primary"),
-		cooling_rack(
-			40.0,
-			[
-				# Slot 0: Implicit construction
-				(1, "UDP", 30.0, false, (10.5, -5.0)),
-				# Slot 1: Comma shortcut
-				,
-				# Slot 2: Auto-filled
-			]
-		)
-	)
-
-	# 2. Named Instance & Array Skips
-	backup_hub: server_room("Cold_Storage", cooling_rack(
-		nodes = [
-			,, # Array comma shortcut: Slots 0 & 1 auto-fill
-			(99, "TCP", threshold=50.0, vec2=(0.0, 10.0)) # Slot 2: Named overrides
-		]
-	))
-}
-
-scene facility_grid {
-	# 3. Scene Path Assignments (Deep Mutations)
-	site_alpha: floorplan(
-		backup_hub.rack.max_load = $($MAX_TEMP * 2.0),
-		backup_hub.name = $($ZONE_PREFIX + "Cold_Storage")
-	)
-}
-```
