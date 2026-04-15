@@ -1,553 +1,298 @@
-# OBJECT SCENE MARKUP LANGUAGE
+# Object Constructor Notation
 
-the purpose of this format is to have unorderd
-jumbles of objects inside of scenes which can be
-addressed and loaded separately.
+OCN is a declarative, framework-agnostic data serialization
+language optimized for dense, hierarchical data structures.
+It replaces the verbosity of JSON and YAML with implicit,
+schema-driven parsing, making it ideal for game engine levels,
+UI layouts, and complex configuration files.
 
+The core philosophy:
+Shift the complexity to the parser so the human types less.
 
-# EXAMPLE USES
+## Basics
 
-- this can be useful in any game where objects are mostly static
-- \<more here\>
+### Primitive Types
 
+- int: `32`, `-3`, `0xFF`, `0o033`, `0b00100101`
+- float: `0.0014`, `12e9`, `32.`, `nan`, `inf`
+- bool: `true`, `false`
+- str: `"hello"`, `"\x1b[0m"`
 
-# TYPES
+### Comments and Whitespace
 
-all automatic
-- standard:
-  - ints: `32`, `-3`, `0xFF`, `0o033`, `0b00100101`
-  - floats: `0.0014`, `12e9`, `32.`, `nan`, `inf`
-  - strings: `"hello"`, `"\x1b[0m"`
-  - bools: `true`, `false`
-  - other: `null`
-- weird:
-  - lists/arrays/vectors \(see [LIST OBJECT](#list-object)\)
-  - meta \(see [META OBJECT](#meta-object)\)
-  - dicts/maps: can be represented by objects
+- Whitespace (spaces, tabs, newlines) is completely ignored
+  outside of strings.
+- Comments use `#`.
 
-more info in [BUILT-IN OBJECTS](#built-in-objects) section
-
-## COMMENTS
-```osml
-# comments are notated like this
+```ocn
+# This is a comment
+value = 10
 ```
 
+## Globals and Expressions
 
-# SYNTAX IN ROOT
+### Globals
 
-- this is where definitions of names happen
-- inside of a scene or an object, things are very different
+Constants defined at the root level. They are read-only and
+restricted to literal primitives.
 
-
-# HEADER
-
-## INCLUDES
-syntax: `add <filename>.osml;`
-
-this adds to current namespace:
-```osml
-add example_blank.osml;
+```ocn
+$GRAVITY = 9.81;
+$DEBUG = true;
+$SYS_NAME = "CORE";
 ```
 
-to give it its own namespace:
-```osml
-add example_blank2.osml as example2;
-```
-address its components like this:
-`example2.obj1`
-`example2.scn1`
+### Expressions `$(...)`
 
-## META OBJECT
+A parse-time calculator. Evaluates math and string
+concatenation before the data is stored in memory.
 
-- the metadata itself is an object
-- the only object allowed in root
+- Allowed: Literals and $Globals.
 
-in root:
-```osml
-meta (
-  author "Trevor Abercrombie",
-)
-```
-can be used in objects and scenes for docstrings, etc.
-
-valid attributes:
-- `author`
-- `comment`
-- `doc`
-
-# GLOBALS
-
-- preprocessed and replaced by everything between the `=` and `;`
-
-```osml
-$GLOBAL_INT = 73 ;
-$GLOBAL_STR = "Apple!" ;
-```
-
-good for options or constants
-
-```osml
-$SCALE = 1.0 ;
-$PI = 3.14159265359 ;
-```
-
-# OBJECTS
-
-- definitions in root
-
-to define:
-```osml
-example_obj ( # the name of the object
-  a,                   # defining an attribute
-  !b,                  # overpower overrides (1)
-  c = 2,               # default value
-  d[1 .. 5] = 3,       # min-max valid values [inclusive .. non-inclusive]
-  e = "hello",         # dynamic typed string
-  f:string = "world",  # static typed string
-  g:int = $GLOBAL_INT, # using a global variable
-)
-```
-*\(1: see [overrides](#overrides)\)*
-
-### a few real ones that will be used in the other examples
-```osml
-obj (
-  a = 1,
-  b = 2,
-  c = 3,
-  d = 4,
-)
-
-rect (
-  x = 0,
-  y = 0,
-  w = 10,
-  h = 10,
-)
-
-color (
-  r = 0,
-  g = 0,
-  b = 0,
+```ocn
+obj enemy(
+	damage = $($GRAVITY * 2.5),
+	name = $($SYS_NAME + "_Bot")
 )
 ```
 
-# SCENES
+## Schemas
 
-to define:
-```osml
-scn { # this gives this scene the name `scn`
-  # objects here
+Everything in OCN is built from a schema defined at the root
+level. There are two types:
+
+### Objects (`obj`)
+
+Defines a strict blueprint (an ordered dictionary/struct).
+
+- No-Gap Rule: All required arguments (those without
+  defaults) MUST be defined in a single contiguous block.
+
+- Inheritance: *schema unpacks properties from a parent
+  object. Bottom-overrides-top applies.
+
+- Property Shorthand: Using a schema name like pos() expands
+  to pos: pos = pos().
+
+```ocn
+obj vec2(x: float = 0.0, y: float = 0.0)
+
+# 'id' and 'name' are contiguous required arguments
+obj entity(
+	id: int,
+	name: string,
+	active = true,
+	vec2() # Shorthand sub-object
+)
+```
+
+### Scenes (`scene`)
+
+Defines an unordered population of instances (a canvas/array).
+
+- Rule: Anonymous arrays [...] are strictly forbidden inside
+  scenes.
+
+```ocn
+scene level_01 {
+	# Objects go here
 }
 ```
 
-## SYNTAX IN SCENES
+## Instantiation and Mapping
 
-this is all within a scene
+When placing an object or other scene into a scene, you
+instantiate it.
 
-## scn1 {
-  ### OBJECT USE:
+### Named vs. Anonymous
 
-  args in same order as definition:
-  ```osml
-  obj 10 10 50 50;
-  ```
-  multi-line:
-  ```osml
-  obj
-    12
-    32
-    12
-    3
-  ;
-  ```
-  because of the semicolon
+- Named (`id: type()`): Gets hashed into the engine's O(1)
+  access registry.
 
-  defaults:
-  ```osml
-  obj 4 23;
-  ```
-  because of defaults, same as:
-  ```osml
-  obj 4 23 3 4;
-  ```
-  like python would have
-  `obj(2, 4, d=12)`
-  to skip c and set d,
-  we have this:
-  ```osml
-  obj 2 4 d(12);
-  ```
-  it skips 3rd arg (c), leaving it default,
-  but specifies d (4th arg) by name
+- Anonymous (`type()`): Added to the scene's object list but
+  not added to the the access registry.
 
-  `.` in place of an argument keeps it default:
-  ```osml
-  obj 2 4 . 12;
-  ```
-  keeps 3rd arg (c) default
-
-  also like python, you can't do a plain arg
-  after specifying one by name:
-  ```osml
-  obj 12 2 c(7) 32;
-  # bad syntax  ^
-  ```
-
-  values can be in parintheses with or without setting by name:
-  ```osml
-  obj (2) (34) c(3) d(23);
-  ```
-## }
-
-
-## MORE SCENE DEFINITIONS
-
-to reiterate, scenes are defined like:
-```osml
-scn2 {
-  obj; # keeping all defaults
-}
-```
-this gives this scene the name `scn2`
-
-scens can contain copies of others:
-```osml
-scn3 {
-  scn2;
-}
-```
-i reiterate, COPIES.
-modifying scn3.scn2 does not modify scn2
-
-unpacks scn2's items into scn4:
-```osml
-scn4 {
-  *scn2;
-}
-```
-in the case above,
-scn4 does non contain a copy of scn2 like scn3 does,
-but instead contains copies of each of scn2's items
-
-this allows there to be an in-place definition of a
-scene inside another:
-```osml
-scn5 {
-  subScn {
-    # objects
-  }
-}
-```
-this does not make `subScn` a scene usable anywhere else,
-but rather just makes a scene inside scn5 addressible
-as `scn5.subScn`
-
-this is bad syntax:
-```osml
-scn {
-  {
-    # objects
-  }
+```ocn
+scene world {
+	player_1: entity(1, "James") # Named
+	tree(x=10, y=20)             # Anonymous object
 }
 ```
 
-the point of a scene is to be addressible by name
-which gets us to this:
+### Argument Mapping
 
-objects themselves are not addressible by any name.
+When passing `()` to an `obj`, values map to the schema:
 
-if you want a single addressible object like a button
-the best you can do is give the object an id
-```osml
-button (
-  x = 0,
-  y = 0,
-  pushed = false,
-  id = 0,
-)
-scn_button {
-  button 0 0 . 2;
+- Positional values map to the required contiguous block first.
+
+- Excess values spill leftward into optionals, then rightward.
+
+- Named Overrides: Bypass positioning entirely (active=false).
+
+- Comma Skips: ,, skips a positional index, forcing its default.
+
+```ocn
+obj transform(x=0, y=0, z=0)
+
+scene demo {
+	# Skips x, sets y to 50, sets z to 10
+	t1: transform(, 50, 10)
 }
 ```
-or put it in its own scene,
-but that's against the point of this language.
 
-then in the real code you can go through and based on the
-object type and id, do things
+### Scene Path Assignments
 
-the reason this is the case is because this language is
-meant for cases where having things in order is not helpful
+When instantiating a scene, () acts as an override block
+using dot-notation to alter its internal children.
 
+```ocn
+scene outpost {
+	guard: entity(1, "Guard")
+}
 
-# MORE STUFF WITHIN SCENES
-
-## scn6 {
-  ### OVERRIDES
-  to change all default values of a name within a scene
-  after a certain point, follow this syntax:
-  ```osml
-  ! a(10) b(10);
-  obj; # vals: 10 10 3 4
-  ! b(23) d(44);
-  obj; # vals: 10 23 3 44
-  ```
-  change values by a relative amount:
-  ```osml
-  ! a+(3) b-(4) c*(2) d/(4)
-  obj; # vals: 13 19 6 11
-  ```
-  to set/change all values in an entire subscene when
-  making an instance:
-  ```osml
-  scn2 ! x(0) y+(10);
-  ```
-  you can still unpack when doing this:
-  ```osml
-  *scn2 ! x(2) y+(4)
-  ```
-
-  - to make a value exempt from this, prefix it with `!` on definition
-  - to overrule this when overriding, use `!!`
-  - to make a value exempt from that, prefix it with `!!` on definition
-  - and so on
-  - the one with more more `!` is the value that is used
-  - if they have the same amount then the original value is use
-  
-  overrides do affect subscenes
-
-  ### FOR LOOPS
-
-  let's say you want to make a 100 x 100 grid of squares
-  you can't realistically do that by hand,
-  so there are for loops:
-  ```
-  <var>(<start=0>;<stop>;<step=1>) {
-    <objects>
-  }
-  ```
-  ```osml
-  i(0;10;1) {
-    rect;
-  }
-  ```
-  when a value is omitted, the default is used:
-  ```osml
-  i(;10;) { # same as above
-	rect;
-  }
-  ```
-  nested:
-  ```osml
-  i(;100;) j(;100;) {
-    # parintheses allow expressions,
-    # can be used any time,
-    # but must be used when there are variables
-    rect (i * 10) (j * 10) 10 10;
-  }
-  ```
-  for loops automatically unpack
-
-  ### IF STATEMENTS
-  - only really useful in for loops
-  ```
-  ? (<expression>) {
-    <objects>
-  }
-  ```
-  - 0 evaluates to false
-  - anything else is true
-  - or just do bools
-  - c-style expressions
-  ```osml
-  i(;100;) j(;100;) {
-    ? (i % j) {
-      rect (i) (j) 10 10;
-    }
-    ? (i == 0) {
-      rect 20 (i) 5 5;
-    }
-    # if statements automatically unpack too
-  }
-  ```
-## }
-
-# ADVANCED OBJECTS
-
-now that we understand how objects look in
-scenes, we can expand on them
-
-an object can have more advanced
-properties by adding a sub-object as
-a kind of namespace
-
-for example:
-```osml
-obj2 (
-  substuff (
-    a = 0,
-    b = 0,
-  ),
-  x = 0,
-  y = 0,
-)
-```
-
-the sub-object can be a copy of an existing one
-- cannot be itself
-```osml
-obj3 (
-  obj2,
-)
-```
-
-## SUB OBJECT DEFAULTS + DEFINITIONS:
-
-setting sub-object values in a scene:
-```osml
-scn7 {
-  obj2 (1) 3 4;
+scene world {
+	# Overrides the guard's name inside the outpost instance
+	camp: outpost(guard.name = "Commander")
 }
 ```
-this sets the values to to:
-```
-obj2 = (
-  substuff = (
-    a = 1,
-    b = 0,
-  )
-  x = 3,
-  y = 4,
+
+## Arrays
+
+Arrays require strict type signatures during definition, but
+use implicit typing during instantiation to drastically
+reduce boilerplate.
+
+### Array Signatures
+
+When defining an array in an `obj` schema, use the format:
+
+`Label: [Type(ElementDefault) ; Length] = [DefaultListItems...]`
+
+- Dynamic Arrays: Omit the length. Elements can be added
+  indefinitely.
+
+- Fixed Arrays: Provide a length (`; N`).
+
+- Element Defaults: Defining a default constructor (e.g.,
+  `item(0)`) allows the parser to auto-fill missing data.
+
+```ocn
+obj item(
+	id: int = 0,
+	name: str = "empty",
+)
+
+obj chest(
+	# Dynamic length. Explicit item definitions required.
+	loot: [item] = [],
+	
+	# Fixed length of 5. Uses a default item.
+	slots: [item(0, "empty") ; 6] = [] 
+	
+	# Dynamic length. Uses the original default for item.
+	# Has default list contents, follows the same rules
+	#   as instantiation, covered below
+	hidden_compartment: [item()] = [
+		item(10, "diamond"),
+		item(11, "emerald")
+	],
 )
 ```
 
-and different defaults for the sub object is
-## IN OBJECT DEFINITIONS:
-```osml
-obj4 (
-  obj1 1 2,
-  obj2 (3 7) 1 2,
-  obj3 obj2(substuff(1 3) 5 7),
-)
+### Implicit Instantiation and Shortcuts
+
+When instantiating an array, the parser uses the signature
+to do the heavy lifting for you.
+
+- Implicit Elements: Omit the schema name entirely. Just
+  use `(args)`.
+
+- Comma Shortcut: An empty comma `,` inserts exactly one
+  instance of the default element. (except for a trailing
+  comma when the array is dynamic; other cases don't apply)
+
+- Auto-Fill: Fixed-length arrays automatically pad any
+  unassigned trailing slots with the default element.
+
+- Explicit Constructor: If the signature lacks an element
+  default (the `()` in `items: [item(...)]`), then comma
+  shortcuts and auto-filling are disabled. Every element
+  must be explicitly defined using (args) or item(args).
+
+```ocn
+scene level_01 {
+	treasure: chest(
+		slots = [
+			,             # Slot 0: Shortcut inserts default item(0, "empty")
+			(1, "sword"), # Slot 1: Implicitly builds item(1, "sword")
+			item(2),      # Slot 2: Uses the default to skip an argument
+			# Slots 3-5: Engine auto-fills the remaining 3 slots
+		]
+	)
+}
 ```
 
-you can give a sub-object a new name within the object:
-```osml
-obj5 (
-  sub:obj1,
+### The Addressibility Barrier
+
+Arrays are "sealed." Bracket indexing (e.g., `slots[1].id = 5`)
+is strictly forbidden within the file. If you need to address
+or override a specific object from a scene path, it must be
+a named logic node (`id:`), not an element inside an array.
+
+## Full Example
+
+```ocn
+$MAX_TEMP = 35.5;
+$ZONE_PREFIX = "SEC_";
+
+obj vec2(x: float = 0.0, y: float = 0.0)
+
+obj hardware(hid: int, protocol: string)
+
+obj thermal_node(
+	*hardware,
+	threshold: float,
+	active: bool = true,
+	vec2()
 )
+
+obj cooling_rack(
+	max_load: float = $MAX_TEMP,
+	nodes: [thermal_node(0, "TCP", 25.0) ; 3] = []
+)
+
+obj server_room(name: string, rack: cooling_rack())
+
+scene floorplan {
+	# 1. Anonymous Instance & Parse-Time Math
+	server_room(
+		$($ZONE_PREFIX + "Primary"),
+		cooling_rack(
+			40.0,
+			[
+				# Slot 0: Implicit construction
+				(1, "UDP", 30.0, false, (10.5, -5.0)),
+				# Slot 1: Comma shortcut
+				,
+				# Slot 2: Auto-filled
+			]
+		)
+	)
+
+	# 2. Named Instance & Array Skips
+	backup_hub: server_room("Cold_Storage", cooling_rack(
+		nodes = [
+			,, # Array comma shortcut: Slots 0 & 1 auto-fill
+			(99, "TCP", threshold=50.0, vec2=(0.0, 10.0)) # Slot 2: Named overrides
+		]
+	))
+}
+
+scene facility_grid {
+	# 3. Scene Path Assignments (Deep Mutations)
+	site_alpha: floorplan(
+		backup_hub.rack.max_load = $($MAX_TEMP * 2.0),
+		backup_hub.name = $($ZONE_PREFIX + "Cold_Storage")
+	)
+}
 ```
-
-you can inherit by unpacking an object:
-```osml
-rect_but_different (
-  *rect,
-  a = 0,
-  b = 0,
-)
-```
-
-a good example of both in action:
-```osml
-colored_rect (
-  *rect,
-  color,
-)
-```
-
-finally, now that we have sub-objects, we can go over
-# BUILT IN OBJECTS:
-- cannot be unpacked
-- for special cases
-- often defy all syntax
-
-## PLAIN TYPE OBJECTS:
-rarely needed
-
-- `int <value>`;
-- `float <value>`;
-- `string <value>`;
-- `bool <value>`;
-
-## LIST OBJECT:
-
-- `list <len/. (for dynamic)> <object>`
-
-you can also set the object's values
-
-let's go with storage as an example
-```osml
-item (
-  name = "",
-  count = 0,
-  in_chest = false,
-)
-
-storage_chest (
-  owner = "",
-  items:list 64 item(in_chest(true)),
-)
-```
-
-dynamic length example
-```osml
-date (
-  year = 0,
-  month = 0,
-  day = 0,
-)
-signature (
-  name = "",
-  date,
-)
-contract (
-  signatures:list . signature,
-)
-```
-
-why plain types?
-- for static typing
-- for lists of plain stuff
-```osml
-obj6 (
-  list . int,
-)
-```
-
-setting the values in a list:
-```osml
-obj7 (
-  a:list 4 int = (
-    1, 2, 3, 4,
-  )
-) # default values in list
-
-obj8 (
-  a:list 2 rect(w(1) h(1)) = (
-    # default constructors for each rect
-    (
-      w = 1,
-      h = 1
-	),
-    ., # use default for 2nd
-    (
-      w = 1,
-      h = . # use default h for 3rd
-    ),
-  )
-)
-```
-
-# HOOKS AND OBJECT TYPES:
-these aren't real, but 
-```osml
-button2 (
-  x = 0,
-  y = 0,
-  pressed = false;
-  type = "interactive";
-  hook = "buttonpress";
-)
-```
-so when you go over it in the code,
-you can check this and run the hooks
