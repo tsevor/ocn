@@ -15,10 +15,6 @@ KEYWORDS = [
 	"scene",
 	"import",
 	"as",
-	
-	# hacky
-	"nan",
-	"inf"
 ]
 
 KWT_NAMES = {
@@ -26,10 +22,6 @@ KWT_NAMES = {
 	"scene": "KEYWORD_SCENE",
 	"import": "KEYWORD_IMPORT",
 	"as": "KEYWORD_AS",
-	
-	# hacky
-	"nan": "LITERAL_FLOAT",
-	"inf": "LITERAL_FLOAT"
 }
 
 class Token:
@@ -54,10 +46,10 @@ class Lexer:
 
 	def next_token(self):
 		ptr = 0
-		
+
 		if self.comment_check():
 			return
-		
+
 		if self.whitespace_check():
 			return
 
@@ -117,13 +109,13 @@ class Lexer:
 				ptr += 1
 				self.add_token("MINUS", self.advance(ptr))
 			return
-		
+
 		if self.word_check():
 			return
-		
+
 		if self.literal_check():
 			return
-		
+
 		# error
 		else:
 			print(self.advance(1), end="")
@@ -135,13 +127,13 @@ class Lexer:
 
 	def next_token_expression(self):
 		ptr = 0
-		
+
 		if self.comment_check():
 			return
-		
+
 		if self.whitespace_check():
 			return
-		
+
 		# variables
 		if self.get(ptr) == "$":
 			ptr += 1
@@ -152,7 +144,7 @@ class Lexer:
 				return
 			else:
 				raise SyntaxError(f"invalid character after $ in expression at line:{self.line}:{self.col}")
-		
+
 		if self.get(ptr) in OPERATORS_IN_EXPRESSION:
 			if self.get(ptr) in "+-":
 				ptr += 1
@@ -169,7 +161,7 @@ class Lexer:
 				self.add_token("RPAREN", self.advance(ptr))
 				self.depth -= 1
 			return
-		
+
 		if self.literal_check():
 			return
 
@@ -206,77 +198,91 @@ class Lexer:
 
 	def literal_check(self):
 		ptr = 0
-		
-		if self.get(ptr) == "\"":
+		char = self.get(ptr)
+
+		# Strings
+		if char == "\"":
 			while True:
 				ptr += 1
-				if self.get(ptr) == "\\":
-					ptr += 2
+				curr = self.get(ptr)
+				if curr == "": # EOF handling
+					raise SyntaxError(f"Unterminated string at {self.line}:{self.col}")
+				if curr == "\\":
+					ptr += 1 # Skip escaped char
 					continue
-				if self.get(ptr) == "\"":
+				if curr == "\"":
 					ptr += 1
 					self.add_token("LITERAL_STRING", self.advance(ptr))
 					return True
-		
-		# number
-		if self.get(ptr).isnumeric():
-			if self.get(ptr) == "0":
-				if self.get(ptr + 1) in "box":
-					ptr += 1
-					base = "box".index(self.get(ptr))
-					ptr += 1
-					# base handling
-					valid_set = [
-						"01_",
-						"01234567_",
-						"0123456789ABCDEFabcdef_"
-					][base]
+
+		# Numbers
+		if char.isnumeric():
+			# Base handling (0b, 0o, 0x)
+			if char == "0":
+				next_char = self.get(ptr + 1)
+				if next_char in "box":
+					base_char = next_char
+					ptr += 2
+					valid_set = {
+						"b": "01_",
+						"o": "01234567_",
+						"x": "0123456789ABCDEFabcdef_"
+					}[base_char]
+
 					while self.get(ptr) in valid_set:
 						ptr += 1
 					
-					self.add_token(f"LITERAL_{["BIN", "OCT", "HEX"][base]}_INT", self.advance(ptr))
+					# Define suffixes separately to avoid f-string nesting issues
+					suffixes = {'b': 'BIN', 'o': 'OCT', 'x': 'HEX'}
+					token_type = f"LITERAL_{suffixes[base_char]}_INT"
+					
+					self.add_token(token_type, self.advance(ptr))
 					return True
-				
-				elif self.get(ptr + 1).isnumeric():
-					raise SyntaxError(f"leading zero on a normal number at line {self.line}:{self.col}")
 
-			# either plain int or float
-			ptr += 1
-			special_count = 0
-			minus_count = 0
-			while self.get(ptr) in "0123456789_.e-":
-				if self.get(ptr) == "-":
-					minus_count += 1
-					if minus_count > 1:
-						raise SyntaxError(f"some kind of mangled thing at line {self.line}:{self.col}")
-				if self.get(ptr) in ".e":
-					special_count += 1
-					if special_count > 1:
-						raise SyntaxError(f"some kind of mangled thing at line {self.line}:{self.col}")
-				ptr += 1
-			if special_count > 0:
-				self.add_token("LITERAL_FLOAT", self.advance(ptr))
-			else:
-				self.add_token("LITERAL_INT", self.advance(ptr))
+				elif self.get(ptr + 1).isnumeric():
+					raise SyntaxError(f"Leading zero on decimal number at {self.line}:{self.col}")
+
+			# Standard Int / Float / Scientific
+			has_dot = False
+			has_exponent = False
+
+			while True:
+				curr = self.get(ptr)
+				if curr.isnumeric() or curr == "_":
+					ptr += 1
+				elif curr == "." and not has_dot and not has_exponent:
+					has_dot = True
+					ptr += 1
+				elif curr in "eE" and not has_exponent:
+					has_exponent = True
+					ptr += 1
+					if self.get(ptr) in "+-":
+						ptr += 1
+				else:
+					break
+
+			token_type = "LITERAL_FLOAT" if (has_dot or has_exponent) else "LITERAL_INT"
+			self.add_token(token_type, self.advance(ptr))
 			return True
-		
-		# bool
-		if self.getslice(ptr, ptr+4) == "true":
-			if self.get(ptr+4) not in VALID_IN_SYMBOL_NAME:
-				self.add_token("LITERAL_BOOL", self.advance(4))
-				return True
-		if self.getslice(ptr, ptr+5) == "false":
-			if self.get(ptr+5) not in VALID_IN_SYMBOL_NAME:
-				self.add_token("LITERAL_BOOL", self.advance(5))
-				return True
-	
-		# null
-		if self.getslice(ptr, ptr+4) == "null":
-			if self.get(ptr+4) not in VALID_IN_SYMBOL_NAME:
-				self.add_token("LITERAL_NULL")
-				self.advance(4)
-				return True
-		
+
+		# Keywords / Named Literals
+		keywords = {
+			"true": "LITERAL_BOOL",
+			"false": "LITERAL_BOOL",
+			"null": "LITERAL_NULL",
+			"inf": "LITERAL_FLOAT",
+			"nan": "LITERAL_FLOAT"
+		}
+
+		for word, t_type in keywords.items():
+			length = len(word)
+			if self.getslice(ptr, ptr + length) == word:
+				if self.get(ptr + length) not in VALID_IN_SYMBOL_NAME:
+					self.add_token(t_type, self.advance(length))
+					return True
+
+		return False
+
 	def word_check(self):
 		ptr = 0
 		if self.get(ptr) in VALID_IN_SYMBOL_NAME_START:
@@ -289,10 +295,10 @@ class Lexer:
 				self.add_token("WORD", word)
 			return True
 		return False
-			
+
 	def get(self, ptr):
 		return self.text[self.pos + ptr]
-		
+
 	def getslice(self, ptr, ptr2):
 		return self.text[self.pos + ptr : self.pos + ptr2]
 
